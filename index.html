@@ -206,8 +206,23 @@
     import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    // --- 전역 설정 및 환경 변수 ---
-    const firebaseConfig = JSON.parse(__firebase_config);
+    // --- [중요] 개인 파이어베이스 연동 설정 ---
+    // 본인의 파이어베이스 프로젝트 콘솔에서 발급받은 SDK 설정을 아래 객체에 붙여넣으세요.
+    const myFirebaseConfig = {
+      apiKey: "AIzaSyA0ZWb59FVxFNxz-Y5xTen_rjUkjzUXPo0",
+      authDomain: "pnu-test.firebaseapp.com",
+      projectId: "pnu-test",
+      storageBucket: "pnu-test.firebasestorage.app",
+      messagingSenderId: "378131168195",
+      appId: "1:378131168195:web:ae7c9d3d003906614c5b76"
+    };
+
+    // --- 전역 설정 및 환경 변수 처리 ---
+    // 시스템 제공 키(__firebase_config)가 있으면 사용하고, 없을 경우(개인 호스팅/로컬 실행) 작성하신 myFirebaseConfig를 사용합니다.
+    const firebaseConfig = (typeof __firebase_config !== 'undefined' && __firebase_config) 
+      ? JSON.parse(__firebase_config) 
+      : myFirebaseConfig;
+
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'ai-ethics-quiz-v1';
 
     // 파이어베이스 인스턴스 초기화
@@ -326,6 +341,7 @@
       }, 50);
     }
 
+    // 모달 닫기
     function hideAlert() {
       modalAlert.classList.add('opacity-0');
       modalContent.classList.add('scale-95');
@@ -342,11 +358,12 @@
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
           await signInWithCustomToken(auth, __initial_auth_token);
         } else {
+          // 익명 로그인을 기본 활성화하여 별도 로그인 절차 없이 보안 규칙 유지
           await signInAnonymously(auth);
         }
       } catch (error) {
         console.error("인증 도중 오류 발생:", error);
-        loadingText.innerHTML = `<span class="text-red-500 font-semibold">데이터베이스 연결에 실패했습니다.<br>페이지를 새로고침하여 재시도해 주세요.</span>`;
+        loadingText.innerHTML = `<span class="text-red-500 font-semibold text-center block px-4">데이터베이스 인증 연결에 실패했습니다.<br><span class="text-xs font-normal text-slate-400 block mt-2">Firebase 콘솔에서 'Anonymous(익명) 로그인'이 활성화되어 있는지 확인해 주세요.</span></span>`;
         return;
       }
 
@@ -379,7 +396,7 @@
         return;
       }
 
-      // 학번 정규식 검증 (예: 단순 숫자 및 문자 제한)
+      // 학번에서 특수문자나 공백 제거
       const studentId = rawId.replace(/[^a-zA-Z0-9]/g, '');
 
       // 로딩 UI 시작
@@ -387,7 +404,7 @@
       loadingText.innerText = "이전 제출 내역 검증 및 퀴즈 구동 중...";
 
       try {
-        // [RULE 1] 경로 규정 철저 준수 (공용 쓰기 공간 활용)
+        // [RULE 1] 경로 규정 준수 (artifacts 내 지정 경로에 쓰기)
         const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'quiz_submissions', studentId);
         const docSnap = await getDoc(docRef);
 
@@ -487,7 +504,6 @@
     btnNext.addEventListener('click', async () => {
       if (selectedOptionIndex === null) return;
 
-      // 정답 여부 계산 및 수집
       const currentQuiz = QUIZ_DATA[userState.currentQuestionIndex];
       const isCorrect = (selectedOptionIndex === currentQuiz.correctIndex);
       
@@ -501,12 +517,10 @@
         userState.score += 1;
       }
 
-      // 최종 또는 다음 문제 분기 처리
       if (userState.currentQuestionIndex + 1 < QUIZ_DATA.length) {
         userState.currentQuestionIndex += 1;
         renderQuestion();
       } else {
-        // 결과 기록 수립 단계
         await submitResultsToFirebase();
       }
     });
@@ -587,13 +601,11 @@
           
           row.className = `flex justify-between items-center px-4 py-3 border-b border-slate-50 last:border-0 text-xs transition-colors ${isMe ? 'bg-indigo-50/50 font-bold' : ''}`;
           
-          // 메달 표기
           let rankLabel = `${index + 1}위`;
           if (index === 0) rankLabel = `🥇 1위`;
           else if (index === 1) rankLabel = `🥈 2위`;
           else if (index === 2) rankLabel = `🥉 3위`;
 
-          // 마스킹 처리된 학번과 이름
           const maskedId = item.studentId.length > 4 ? item.studentId.substring(0, 4) + '***' : item.studentId;
           const maskedName = item.name.length > 1 ? item.name[0] + '*'.repeat(item.name.length - 1) : item.name;
 
